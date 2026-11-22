@@ -1,0 +1,21 @@
+Explorer character — asset credits and license
+==============================================
+
+All files in this folder are built from free assets by Quaternius (https://quaternius.com),
+released under CC0 1.0 Universal (Public Domain Dedication):
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Sources (free "Standard" editions, downloaded from the official itch.io pages):
+  - Universal Base Characters      https://quaternius.itch.io/universal-base-characters
+      head, eyes and "Simple Parted" hairstyle (Superhero_Male_FullBody, Hair_SimpleParted)
+  - Modular Character Outfits - Fantasy  https://quaternius.itch.io/modular-character-outfits-fantasy
+      "Male Ranger" outfit (hood removed)
+  - Universal Animation Library    https://quaternius.itch.io/universal-animation-library
+      clips: Idle_Loop, Walk_Loop, Jog_Fwd_Loop, Jump_Start, Jump_Loop, Jump_Land
+
+Changes made for this project: the base body was trimmed to the head and neck so the outfit
+provides the body, the parts were merged into model.glb, textures were resized to 1024 px WebP,
+and only the locomotion clips were kept in animations/locomotion.glb.
+
+CC0 requires no attribution; this note is kept for provenance. Consider supporting the author:
+https://www.patreon.com/quaternius
