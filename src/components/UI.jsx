@@ -59,11 +59,6 @@ export default function UI({ onResetView }) {
 
       <TimeControls />
 
-      {!world.envReady && (
-        <div className="ui-loading" role="status">
-          {world.error ? `Could not generate the world: ${world.error}` : world.ready ? 'Growing forests and placing rocks…' : 'Shaping the island…'}
-        </div>
-      )}
 
       <div className="ui-panel">
         <button

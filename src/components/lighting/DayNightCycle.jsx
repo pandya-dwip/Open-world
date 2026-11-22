@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { advanceTime, time } from '../../environment/time/timeStore.js'
 import { atmosphere, updateAtmosphere } from '../../environment/time/atmosphere.js'
+import { useWorld } from '../../world/worldStore.js'
 
 /**
  * Drives the day-night cycle: advances the clock, recomputes the shared
@@ -11,8 +12,9 @@ import { atmosphere, updateAtmosphere } from '../../environment/time/atmosphere.
 export default function DayNightCycle() {
   const scene = useThree((s) => s.scene)
   const gl = useThree((s) => s.gl)
+  const { sceneReady } = useWorld() // the clock starts when the loading screen closes
   useFrame((_, dt) => {
-    advanceTime(Math.min(dt, 0.1))
+    if (sceneReady) advanceTime(Math.min(dt, 0.1))
     updateAtmosphere(time.hours)
     // fog always matches the horizon so the far ocean edge blends into the sky
     if (scene.fog) scene.fog.color.copy(atmosphere.horizon)

@@ -6,7 +6,7 @@ import { QUALITY } from './quality.js'
 import { MOUNTAIN_HEIGHTMAP } from '../environment/environmentConfig.js'
 import { loadMountainHeightMap } from '../environment/mountain.js'
 
-let state = { islands: ISLANDS.map(() => null), loaded: 0, depth: null, ready: false, envReady: false, spawn: null, error: null }
+let state = { islands: ISLANDS.map(() => null), loaded: 0, depth: null, ready: false, envReady: false, spawn: null, sceneReady: false, error: null }
 const listeners = new Set()
 const set = (patch) => {
   state = { ...state, ...patch }
@@ -110,3 +110,6 @@ export function blockedAt(x, z, r) {
 
 /** Called once the environment (mountain, vegetation, rocks) is in place. */
 export const setEnvironmentReady = (spawn) => set({ envReady: true, spawn })
+
+/** Called once everything is drawn and its shaders are compiled: the game can be shown. */
+export const setSceneReady = () => set({ sceneReady: true })

@@ -7,6 +7,8 @@ import DayNightCycle from './components/lighting/DayNightCycle.jsx'
 import PlayerCharacter from './character/PlayerCharacter.jsx'
 import MobileControls from './controls/MobileControls.jsx'
 import UI from './components/UI.jsx'
+import LoadingScreen from './components/ui/LoadingScreen.jsx'
+import SceneWarmup from './components/SceneWarmup.jsx'
 import { COLORS, HOME_VIEW } from './world/shared.js'
 import { QUALITY } from './world/quality.js'
 
@@ -31,9 +33,11 @@ export default function App() {
         <World />
         <PlayerCharacter />
         <CameraRig apiRef={cameraApi} />
+        <SceneWarmup />
       </Canvas>
       <UI onResetView={() => cameraApi.current?.reset()} />
       <MobileControls />
+      <LoadingScreen />
     </>
   )
 }

@@ -30,7 +30,7 @@ function behindOffset(out, yaw, distance = TP.distance, elevation = 0.3) {
  * Start (or restart) the smooth fly-in to the third-person view.
  * @param fromBehind true: end behind the character; false: keep the current viewing direction
  */
-export function beginThirdPerson(camera, controls, fromBehind = false) {
+export function beginThirdPerson(camera, controls, fromBehind = false, instant = false) {
   state.fromPos.copy(camera.position)
   state.fromTarget.copy(controls.target)
   if (fromBehind) {
@@ -46,7 +46,7 @@ export function beginThirdPerson(camera, controls, fromBehind = false) {
   }
   state.focusY = player.position.y + TP.targetHeight
   state.t = 0
-  state.duration = fromBehind ? 0.9 : TP.transitionTime
+  state.duration = instant ? 1e-4 : fromBehind ? 0.9 : TP.transitionTime
   state.active = true
 }
 

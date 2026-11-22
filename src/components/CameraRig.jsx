@@ -67,7 +67,8 @@ export default function CameraRig({ apiRef }) {
   // Mode switching: reconfigure the shared controls without moving the camera.
   // Entering third person flies the camera in once the character exists.
   const mode = useMode()
-  const pendingFlyIn = useRef({ behind: true }) // first fly-in ends behind the character
+  // on start the camera is placed straight behind the character (the loading screen covers it)
+  const pendingFlyIn = useRef({ behind: true, instant: true })
   const prevMode = useRef(mode)
   useEffect(() => {
     const c = controls.current
@@ -122,7 +123,7 @@ export default function CameraRig({ apiRef }) {
     if (getMode() === 'player') {
       if (!player.ready) return
       if (pendingFlyIn.current) {
-        beginThirdPerson(camera, c, pendingFlyIn.current.behind)
+        beginThirdPerson(camera, c, pendingFlyIn.current.behind, pendingFlyIn.current.instant)
         pendingFlyIn.current = null
       }
       updateThirdPerson(delta, camera, c)
