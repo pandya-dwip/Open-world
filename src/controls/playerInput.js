@@ -29,7 +29,7 @@ export const queueJump = () => {
   input.jumpQueued = true
 }
 
-const isTyping = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.target?.isContentEditable
+const isTyping = (e) => (/^(TEXTAREA|SELECT)$/.test(e.target?.tagName) || (e.target?.tagName === 'INPUT' && !/^(range|checkbox|radio|button)$/.test(e.target.type)) || e.target?.isContentEditable)
 
 function onKeyDown(e) {
   const action = KEYMAP[e.code]

@@ -36,12 +36,12 @@ function Explorer() {
   const anims = useGLTF(ANIM_URL, false)
   const root = useMemo(() => prepareExplorer(model.scene), [model.scene])
   const animator = useMemo(() => new CharacterAnimator(root, anims.animations), [root, anims.animations])
-  const { ready } = useWorld()
+  const { envReady, spawn } = useWorld()
 
   useEffect(attachKeyboard, [])
   useEffect(() => {
-    if (ready && !player.ready) spawnPlayer()
-  }, [ready])
+    if (envReady && !player.ready) spawnPlayer(spawn)
+  }, [envReady, spawn])
 
   // priority -2: move the player before the camera controls update (-1) and follow (0)
   useFrame(({ camera }, rawDt) => {
@@ -56,5 +56,5 @@ function Explorer() {
     animator.update(dt, playerSpeed(), player.grounded)
   }, -2)
 
-  return <primitive object={root} visible={ready} />
+  return <primitive object={root} visible={envReady} />
 }

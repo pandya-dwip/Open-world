@@ -3,7 +3,8 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { SEA_FLOOR, WORLD_BOUNDS } from '../world/islands.js'
 import { DEPTH_RANGE } from '../world/terrain.js'
-import { COLORS, SUN_DIR, timeUniform } from '../world/shared.js'
+import { timeUniform } from '../world/shared.js'
+import { atmosphere } from '../environment/time/atmosphere.js'
 import { NOISE_GLSL } from '../world/glsl.js'
 import { QUALITY } from '../world/quality.js'
 
@@ -56,6 +57,9 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uShallow;
   uniform vec3 uSky;
   uniform vec3 uSun;
+  uniform vec3 uLightColor;
+  uniform float uSpec;
+  uniform float uWater;
   varying vec3 vWorld;
   #include <fog_pars_fragment>
 
@@ -90,12 +94,12 @@ const fragmentShader = /* glsl */ `
     col = mix(col, uShallow, shallow * 0.6);
 
     float fresnel = pow(1.0 - max(dot(N, V), 0.0), 4.0);
-    col *= 0.8 + 0.28 * max(dot(N, uSun), 0.0);
+    col *= uWater * (0.8 + 0.28 * max(dot(N, uSun), 0.0));
     col = mix(col, uSky, fresnel * 0.5);
 
     vec3 R = reflect(-V, N);
     float sd = max(dot(R, uSun), 0.0);
-    col += vec3(1.0, 0.95, 0.86) * (pow(sd, 260.0) * 1.8 + pow(sd, 60.0) * 0.25 + pow(sd, 12.0) * 0.06);
+    col += uLightColor * uSpec * (pow(sd, 260.0) * 1.8 + pow(sd, 60.0) * 0.25 + pow(sd, 12.0) * 0.06);
 
     // thin, broken foam where the water meets the shore
     float fn = vnoise(p * 0.11 + uTime * 0.04) * 0.6 + vnoise(p * 0.37 - uTime * 0.06) * 0.4;
@@ -103,7 +107,7 @@ const fragmentShader = /* glsl */ `
     float lap = 0.5 + 0.5 * sin(depth * 4.0 - uTime * 1.3 + fn * 4.0);
     float foam = (1.0 - smoothstep(0.0, 0.45, edge)) * 0.55 + (1.0 - smoothstep(0.2, 1.4, edge)) * smoothstep(0.7, 0.95, lap) * 0.3;
     foam *= smoothstep(0.25, 0.7, fn + 0.25) * (1.0 - smoothstep(300.0, 1200.0, dist));
-    col = mix(col, vec3(0.93, 0.97, 1.0), clamp(foam, 0.0, 1.0));
+    col = mix(col, vec3(0.93, 0.97, 1.0) * max(uWater, 0.3), clamp(foam, 0.0, 1.0));
 
     float alpha = mix(0.95, 0.3, shallow);
     alpha = max(mix(alpha, 1.0, fresnel * 0.8), foam);
@@ -137,13 +141,18 @@ export default function Ocean({ depth }) {
         uDeep: { value: new THREE.Color('#0b3d74') },
         uMid: { value: new THREE.Color('#1a6fb5') },
         uShallow: { value: new THREE.Color('#2b9cac') },
-        uSky: { value: new THREE.Color(COLORS.horizon) },
-        uSun: { value: SUN_DIR.clone() },
+        uSpec: { value: 1 },
+        uWater: { value: 1 },
         uBounds: { value: WORLD_BOUNDS },
         uDepthMap: { value: null },
       },
     ])
     uniforms.uTime = timeUniform // shared object, updated once per frame
+    // sky reflection, light direction and colour reference the day-night atmosphere
+    // (assigned after merge(), which would otherwise clone them)
+    uniforms.uSky = { value: atmosphere.horizon }
+    uniforms.uSun = { value: atmosphere.lightDir }
+    uniforms.uLightColor = { value: atmosphere.lightColor }
     return new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, fog: true, transparent: true })
   }, [])
 
@@ -155,6 +164,8 @@ export default function Ocean({ depth }) {
 
   useFrame(({ camera }, delta) => {
     timeUniform.value += Math.min(delta, 0.1)
+    material.uniforms.uWater.value = atmosphere.water
+    material.uniforms.uSpec.value = Math.min(1.2, atmosphere.lightIntensity / 2.4)
     // Keep the finite ocean centred under the camera, snapped to the grid
     // spacing so vertices stay stable (waves are computed in world space).
     const step = OCEAN_SIZE / segs

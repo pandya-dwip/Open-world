@@ -1,23 +1,26 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { SUN_DIR, COLORS } from '../world/shared.js'
+import { COLORS } from '../world/shared.js'
+import { atmosphere } from '../environment/time/atmosphere.js'
 import { QUALITY } from '../world/quality.js'
 import { getMode } from '../game/gameStore.js'
 
 const tmpTarget = new THREE.Vector3()
 
 /**
- * Warm sun + sky/ground fill. The world is too large for one fixed shadow
- * map, so the sun's shadow frustum follows the camera focus and scales with
- * zoom. The shadow map is re-rendered only when the view has changed, and at
- * a throttled rate while it is changing.
+ * Key light (sun by day, moon by night) + sky/ground fill, driven by the
+ * day-night atmosphere. The world is too large for one fixed shadow map, so
+ * the shadow frustum follows the camera focus and scales with zoom. The shadow
+ * map is re-rendered only when the view or the light direction has changed,
+ * at a throttled rate while it keeps changing.
  */
 export default function Lighting() {
   const gl = useThree((s) => s.gl)
   const scene = useThree((s) => s.scene)
   const light = useRef()
-  const last = useRef({ key: '', moved: false, frames: 0, camPos: new THREE.Vector3() })
+  const hemi = useRef()
+  const last = useRef({ key: '', moved: false, frames: 0, camPos: new THREE.Vector3(), lightDir: new THREE.Vector3() })
   const throttle = QUALITY.shadowMapSize > 1024 ? 6 : 10
 
   const target = useMemo(() => new THREE.Object3D(), [])
@@ -46,7 +49,17 @@ export default function Lighting() {
     const cameraMoved = st.camPos.distanceToSquared(camera.position) > 0.25
     st.camPos.copy(camera.position)
 
-    if (key !== st.key) {
+    // lights follow the day-night atmosphere
+    l.color.copy(atmosphere.lightColor)
+    l.intensity = atmosphere.lightIntensity
+    l.castShadow = atmosphere.lightIntensity > 0.05
+    hemi.current.color.copy(atmosphere.hemiSky)
+    hemi.current.groundColor.copy(atmosphere.hemiGround)
+    hemi.current.intensity = atmosphere.hemiIntensity
+    const lightMoved = st.lightDir.angleTo(atmosphere.lightDir) > 0.002
+
+    if (key !== st.key || lightMoved) {
+      st.lightDir.copy(atmosphere.lightDir)
       st.key = key
       const sc = l.shadow.camera
       sc.left = sc.bottom = -extent
@@ -57,7 +70,7 @@ export default function Lighting() {
       l.shadow.normalBias = ((2 * extent) / QUALITY.shadowMapSize) * 1.2
       target.position.set(cx, 0, cz)
       target.updateMatrixWorld()
-      l.position.set(cx, 0, cz).addScaledVector(SUN_DIR, 2000)
+      l.position.set(cx, 0, cz).addScaledVector(atmosphere.lightDir, 2000)
       st.moved = true
     }
     // level-of-detail swaps while moving change the casters: refresh periodically
@@ -74,7 +87,7 @@ export default function Lighting() {
   return (
     <>
       <fog attach="fog" args={[COLORS.fog, ...QUALITY.fog]} />
-      <hemisphereLight args={['#d4e9ff', '#5f7a52', 1.05]} />
+      <hemisphereLight ref={hemi} args={['#d4e9ff', '#5f7a52', 1.05]} />
       <directionalLight
         ref={light}
         target={target}

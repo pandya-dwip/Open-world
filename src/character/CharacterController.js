@@ -5,7 +5,7 @@
 // obstacles can be added in one place.
 import * as THREE from 'three'
 import { MOVE } from './characterConfig.js'
-import { heightAt } from '../world/worldStore.js'
+import { blockedAt, heightAt } from '../world/worldStore.js'
 
 /** Shared, mutable player state (read by the camera, lighting and UI). */
 export const player = {
@@ -21,23 +21,25 @@ const dampF = (rate, dt) => 1 - Math.exp(-rate * dt)
 /** Ground height under a point (the terrain for now; extend with props later). */
 export const groundAt = (x, z) => heightAt(x, z)
 
-/** Whether the character may stand at a point (keeps it out of deep water). */
-export const canStandAt = (x, z) => groundAt(x, z) >= MOVE.minGroundHeight
+const BODY_RADIUS = 0.35
 
-/** Put the character on the island: between its centre and the bay, facing the sea. */
-export function spawnPlayer(from = [0, 0], towards = [232, 324]) {
-  const [ax, az] = from
-  const [bx, bz] = towards
-  let lastLand = 0
-  for (let t = 0; t <= 1; t += 0.01) {
-    if (groundAt(ax + (bx - ax) * t, az + (bz - az) * t) > 1.8) lastLand = t
-  }
-  const t = lastLand * 0.8 // a little inland from the beach
-  const x = ax + (bx - ax) * t
-  const z = az + (bz - az) * t
-  player.position.set(x, groundAt(x, z), z)
+/**
+ * Whether the character may move to a point: not into deep water, not into a
+ * tree trunk or large rock, and not up a slope steeper than it can climb.
+ */
+export function canStandAt(x, z) {
+  const g = groundAt(x, z)
+  if (g < MOVE.minGroundHeight || blockedAt(x, z, BODY_RADIUS)) return false
+  const p = player.position
+  const step = Math.hypot(x - p.x, z - p.z)
+  return !player.grounded || g - p.y <= step * MOVE.maxClimb + 0.05
+}
+
+/** Put the character at the spawn point chosen by the environment (facing the mountain). */
+export function spawnPlayer(spawn) {
+  player.position.set(spawn.x, groundAt(spawn.x, spawn.z), spawn.z)
   player.velocity.set(0, 0, 0)
-  player.yaw = Math.atan2(bx - ax, bz - az)
+  player.yaw = spawn.yaw
   player.grounded = true
   player.ready = true
 }

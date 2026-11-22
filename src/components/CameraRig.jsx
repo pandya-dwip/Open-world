@@ -92,7 +92,7 @@ export default function CameraRig({ apiRef }) {
   }))
 
   useEffect(() => {
-    const isTyping = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.target?.isContentEditable
+    const isTyping = (e) => (/^(TEXTAREA|SELECT)$/.test(e.target?.tagName) || (e.target?.tagName === 'INPUT' && !/^(range|checkbox|radio|button)$/.test(e.target.type)) || e.target?.isContentEditable)
     const down = (e) => {
       const k = KEYMAP[e.code]
       if (!k || getMode() !== 'free' || isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return

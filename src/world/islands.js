@@ -1,7 +1,8 @@
 // Island definition. Pure JS (no three.js) so the generator worker can use it.
-// A sand archipelago: one irregular main island (built from overlapping lobes
-// with a carved bay) surrounded by several smaller islets. Sand only.
-import { createNoise2D, fbm } from './noise.js'
+// One irregular main island (overlapping lobes with a carved bay) and several
+// islets. Beaches rise into rolling grassland and hills; broad foothills in the
+// north cradle the downloaded mountain model, whose base is buried in them.
+import { createNoise2D, fbm, smoothstep } from './noise.js'
 
 export const SEA_FLOOR = -20
 
@@ -30,10 +31,10 @@ const DEFS = [
     bays: [{ x: 0.3, z: 0.9, r: 0.42 }],
     beach: 40, // distance over which the shore rises from the waterline
     sand: '#e9d6a2',
-    // soft, low undulation so the sand catches light; no hills or peaks
-    relief(u, v, s, n) {
-      return Math.min(s, 1) * 5 + (fbm(n, u * 4, v * 4, 3) * 0.5 + 0.5) * 2.5
-    },
+    // Where the downloaded mountain model stands (island-local metres): position,
+    // yaw, scale and base height. Foothills (radius / height) rise around it, and
+    // the terrain also extends the model's own slopes outwards (see mountainField.js).
+    mountain: { x: -40, z: -150, yaw: 0, scale: 1.05, y0: 6, radius: 360, height: 22 },
   },
 ]
 
@@ -68,28 +69,59 @@ function buildIsland(def) {
     return s
   }
 
-  /** Height at island-local coordinates. */
-  function heightLocal(x, z) {
+  const M = def.mountain
+
+  /**
+   * Terrain relief above the beach, in metres, for a point `d` metres inland.
+   * Gentle dunes near the shore, rolling grassland and hills further in, and
+   * foothills that climb towards the mountain site.
+   */
+  function relief(x, z, d) {
+    const inland = smoothstep(def.beach * 0.6, def.beach * 4.5, d)
+    const dunes = (fbm(n, x / 25, z / 25, 3) * 0.5 + 0.5) * 2.2 * (1 - inland)
+    const rolling = (fbm(n, x / 210 + 5, z / 210 - 3, 4) * 0.5 + 0.5) * 14
+    const hills = Math.max(0, fbm(n, x / 120 - 9, z / 120 + 4, 3)) * 22
+    const rM = Math.hypot(x - M.x, z - M.z)
+    const foot = M.height * smoothstep(M.radius, M.radius * 0.28, rM)
+    const footBumps = fbm(n, x / 60, z / 60, 3) * 7 * smoothstep(M.radius, M.radius * 0.5, rM)
+    return dunes + inland * (2 + rolling + hills * smoothstep(60, 220, d) + foot + footBumps)
+  }
+
+  // set by the terrain worker: terrain height required around the mountain model
+  let mountainSkirt = null
+
+  const out = { h: 0, d: 0 }
+  /** Height and distance inland (negative offshore) at island-local coordinates. */
+  function surfaceLocal(x, z) {
     const u0 = x / R
     const v0 = z / R
     // domain warp gives organic bays and headlands
     const u = u0 + fbm(n, u0 * warpFreq + 17, v0 * warpFreq - 3, 3) * warp
     const v = v0 + fbm(n, u0 * warpFreq - 11, v0 * warpFreq + 29, 3) * warp
     let s = shapeAt(u, v)
-    if (s === -Infinity) return SEA_FLOOR
+    if (s === -Infinity) {
+      out.h = SEA_FLOOR
+      out.d = -1e4
+      return out
+    }
     s += fbm(n, u * 7 + 11, v * 7 - 5, 3) * detail
 
     const d = s * R // approximate distance inland, world units
+    out.d = d
     if (d < 0) {
       // gentle shelf, then a steeper drop to the sea floor
       const o = -d
       const h = -(0.13 * o + 0.42 * Math.max(o - 24, 0))
-      return Math.max(SEA_FLOOR, h + fbm(n, u * 20, v * 20, 2) * 0.4)
+      out.h = Math.max(SEA_FLOOR, h + fbm(n, u * 20, v * 20, 2) * 0.4)
+      return out
     }
     const b = def.beach
-    const shore = (Math.min(d, b) / b) * 1.6
-    return shore + Math.min(1, d / (b * 3)) * def.relief(u, v, s, n)
+    out.h = (Math.min(d, b) / b) * 1.6 + relief(x, z, d)
+    if (mountainSkirt) out.h = Math.max(out.h, mountainSkirt(x, z))
+    return out
   }
+
+  const heightLocal = (x, z) => surfaceLocal(x, z).h
 
   // half-size of the square terrain patch that covers every blob plus its shelf
   const reach = Math.max(
@@ -102,10 +134,17 @@ function buildIsland(def) {
     noise: n,
     extent,
     heightLocal,
+    surfaceLocal,
+    setMountainSkirt(fn) {
+      mountainSkirt = fn
+    },
     toLocal(wx, wz) {
       const dx = wx - px
       const dz = wz - pz
       return [dx * cos - dz * sin, dx * sin + dz * cos]
+    },
+    toWorld(lx, lz) {
+      return [px + lx * cos + lz * sin, pz - lx * sin + lz * cos]
     },
   }
 }

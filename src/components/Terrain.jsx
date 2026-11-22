@@ -30,7 +30,7 @@ function chunkIndex(m) {
 
 function buildChunkGeometry(data, ci, cj, step, cx, cz) {
   const { N, sp, extent, heights } = data.grid
-  const { normals, colors } = data
+  const { normals, colors, masks } = data
   const m = CHUNK_CELLS / step
   const V = m + 3
   const i0 = ci * CHUNK_CELLS
@@ -38,6 +38,7 @@ function buildChunkGeometry(data, ci, cj, step, cx, cz) {
   const pos = new Float32Array(V * V * 3)
   const nor = new Float32Array(V * V * 3)
   const col = new Float32Array(V * V * 3)
+  const msk = new Float32Array(V * V * 2)
   const skirt = 2 + step * sp * 0.9
   let v = 0
   for (let b = 0; b < V; b++) {
@@ -53,6 +54,7 @@ function buildChunkGeometry(data, ci, cj, step, cx, cz) {
       pos[v + 2] = -extent + gj * sp - cz
       nor[v] = normals[k * 3]; nor[v + 1] = normals[k * 3 + 1]; nor[v + 2] = normals[k * 3 + 2]
       col[v] = colors[k * 3]; col[v + 1] = colors[k * 3 + 1]; col[v + 2] = colors[k * 3 + 2]
+      msk[(v / 3) * 2] = masks[k * 2]; msk[(v / 3) * 2 + 1] = masks[k * 2 + 1]
       v += 3
     }
   }
@@ -60,6 +62,7 @@ function buildChunkGeometry(data, ci, cj, step, cx, cz) {
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3))
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3))
+  geo.setAttribute('aMask', new THREE.BufferAttribute(msk, 2))
   geo.setIndex(chunkIndex(m))
   geo.computeBoundingSphere()
   return geo

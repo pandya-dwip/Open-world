@@ -11,6 +11,7 @@ export const MOVE = {
   jumpVelocity: 6.4, // m/s upwards; ~1 m high with the gravity below
   gravity: 20, // m/s²
   minGroundHeight: -0.4, // the character may wade into ankle-deep water, no further
+  maxClimb: 1.2, // steepest walkable slope (rise / run, ~50°); steeper rock faces block
 }
 
 /** The explorer model and its animation clips (see public/assets/characters/explorer). */

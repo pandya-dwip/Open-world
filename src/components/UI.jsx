@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { IS_TOUCH } from '../world/quality.js'
 import { useWorld } from '../world/worldStore.js'
 import { toggleMode, useMode } from '../game/gameStore.js'
+import TimeControls from './ui/TimeControls.jsx'
+import CreditsPanel from './ui/CreditsPanel.jsx'
 
 const HINTS = {
   free: {
@@ -43,6 +45,7 @@ const clickThenBlur = (fn) => (e) => {
 /** Overlay: title, camera-mode switch, control hints and a reset-view button. */
 export default function UI({ onResetView }) {
   const [open, setOpen] = useState(!IS_TOUCH)
+  const [credits, setCredits] = useState(false)
   const mode = useMode()
   const hints = HINTS[mode][IS_TOUCH ? 'touch' : 'desktop']
   const world = useWorld()
@@ -54,9 +57,11 @@ export default function UI({ onResetView }) {
         <p>{mode === 'player' ? 'Third-person' : 'Free exploration'}</p>
       </header>
 
-      {!world.ready && (
+      <TimeControls />
+
+      {!world.envReady && (
         <div className="ui-loading" role="status">
-          {world.error ? `Could not generate the world: ${world.error}` : 'Shaping the island…'}
+          {world.error ? `Could not generate the world: ${world.error}` : world.ready ? 'Growing forests and placing rocks…' : 'Shaping the island…'}
         </div>
       )}
 
@@ -87,8 +92,12 @@ export default function UI({ onResetView }) {
           <button type="button" onClick={clickThenBlur(onResetView)}>
             Reset view
           </button>
+          <button type="button" onClick={clickThenBlur(() => setCredits(true))}>
+            Credits
+          </button>
         </div>
       </div>
+      {credits && <CreditsPanel onClose={() => setCredits(false)} />}
     </div>
   )
 }

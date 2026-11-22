@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { COLORS, SUN_DIR } from '../world/shared.js'
+import { atmosphere } from '../environment/time/atmosphere.js'
 import { mulberry32 } from '../world/noise.js'
 
 const skyVertex = /* glsl */ `
@@ -15,28 +15,72 @@ const skyFragment = /* glsl */ `
   uniform vec3 uTop;
   uniform vec3 uHorizon;
   uniform vec3 uSun;
+  uniform vec3 uMoon;
+  uniform vec3 uSunColor;
+  uniform float uSunVisible;
+  uniform float uMoonVisible;
+  uniform float uStars;
+  uniform float uTime;
   varying vec3 vDir;
+
+  float hash3(vec3 p) {
+    p = fract(p * vec3(443.897, 441.423, 437.195));
+    p += dot(p, p.yzx + 19.19);
+    return fract((p.x + p.y) * p.z);
+  }
+  // sparse twinkling stars on a 3D cell grid over the sky sphere
+  float starField(vec3 d) {
+    vec3 p = d * 260.0;
+    vec3 c = floor(p);
+    float h = hash3(c);
+    if (h < 0.986) return 0.0;
+    vec3 f = fract(p) - 0.5;
+    float twinkle = 0.65 + 0.35 * sin(uTime * (2.0 + h * 6.0) + h * 100.0);
+    return smoothstep(0.32, 0.0, length(f)) * (h - 0.986) / 0.014 * twinkle;
+  }
+
   void main() {
     vec3 d = normalize(vDir);
     float h = max(d.y, 0.0);
     vec3 col = mix(uHorizon, uTop, pow(smoothstep(0.0, 0.7, h), 0.75));
+
+    // sun: disc plus a warm glow that tints the sky around it at sunrise / sunset
     float s = max(dot(d, uSun), 0.0);
-    col += vec3(1.0, 0.93, 0.78) * (pow(s, 900.0) * 1.6 + pow(s, 12.0) * 0.18);
+    col += uSunColor * (pow(s, 900.0) * 1.8 + pow(s, 10.0) * 0.22 + pow(s, 3.0) * 0.08) * uSunVisible;
+
+    // moon: pale disc with a soft halo
+    float m = max(dot(d, uMoon), 0.0);
+    float disc = smoothstep(0.99955, 0.99975, m);
+    col += vec3(0.92, 0.94, 1.0) * (disc * 1.1 + pow(m, 60.0) * 0.12) * uMoonVisible;
+
+    // stars fade out towards the horizon and behind the moon disc
+    col += vec3(0.9, 0.94, 1.0) * starField(d) * uStars * smoothstep(0.02, 0.25, d.y) * (1.0 - disc);
     gl_FragColor = vec4(col, 1.0);
     // no tone mapping here, so the horizon matches the (untone-mapped) fog colour exactly
     #include <colorspace_fragment>
   }
 `
 
-/** Gradient sky dome with a soft sun, plus a ring of slowly drifting low-poly clouds. */
+/**
+ * Day-night sky dome: gradient, sun with glow, moon and twinkling stars, all
+ * driven by the shared atmosphere. Plus a ring of slowly drifting clouds whose
+ * colour follows the time of day.
+ */
 export default function Sky() {
   const skyMat = useMemo(
     () =>
       new THREE.ShaderMaterial({
+        // the uniforms reference the atmosphere's own vectors / colours
         uniforms: {
-          uTop: { value: new THREE.Color(COLORS.skyTop) },
-          uHorizon: { value: new THREE.Color(COLORS.horizon) },
-          uSun: { value: SUN_DIR.clone() },
+          uTop: { value: atmosphere.skyTop },
+          uHorizon: { value: atmosphere.horizon },
+          uSun: { value: atmosphere.sunDir },
+          uMoon: { value: atmosphere.moonDir },
+          uSunColor: { value: atmosphere.lightColor },
+          uSunVisible: { value: 1 },
+          uMoonVisible: { value: 0 },
+          uStars: { value: 0 },
+          uTime: { value: 0 },
         },
         vertexShader: skyVertex,
         fragmentShader: skyFragment,
@@ -49,7 +93,14 @@ export default function Sky() {
 
   // the dome and cloud ring travel with the camera, so they always surround it
   const follow = useRef()
-  useFrame(({ camera }) => follow.current.position.set(camera.position.x, 0, camera.position.z))
+  useFrame(({ camera }, dt) => {
+    follow.current.position.set(camera.position.x, 0, camera.position.z)
+    const u = skyMat.uniforms
+    u.uSunVisible.value = atmosphere.sunVisible
+    u.uMoonVisible.value = atmosphere.moonVisible
+    u.uStars.value = atmosphere.stars
+    u.uTime.value += Math.min(dt, 0.1)
+  })
 
   return (
     <group ref={follow}>
@@ -64,6 +115,7 @@ export default function Sky() {
 function Clouds() {
   const ref = useRef()
   const group = useRef()
+  const mat = useRef()
   const puffs = useMemo(() => {
     const rand = mulberry32(7)
     const list = []
@@ -97,13 +149,16 @@ function Clouds() {
 
   useFrame((_, dt) => {
     group.current.rotation.y += Math.min(dt, 0.1) * 0.002
+    // clouds take the light of the hour: white by day, peach at dusk, slate at night
+    mat.current.color.copy(atmosphere.cloud)
+    mat.current.emissive.copy(atmosphere.cloud).multiplyScalar(0.55)
   })
 
   return (
     <group ref={group}>
       <instancedMesh ref={ref} args={[undefined, undefined, puffs.length]} frustumCulled={false}>
         <icosahedronGeometry args={[1, 2]} />
-        <meshLambertMaterial color="#ffffff" emissive="#c9dcf0" emissiveIntensity={0.55} fog={false} />
+        <meshLambertMaterial ref={mat} color="#ffffff" emissive="#c9dcf0" emissiveIntensity={1} fog={false} />
       </instancedMesh>
     </group>
   )

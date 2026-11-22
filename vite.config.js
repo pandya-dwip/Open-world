@@ -25,6 +25,15 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,glb}'],
+        // large environment kits are cached on first use instead of precached
+        globIgnores: ['**/assets/environment/**'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/assets/environment/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'environment-assets', expiration: { maxEntries: 40 } },
+          },
+        ],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),

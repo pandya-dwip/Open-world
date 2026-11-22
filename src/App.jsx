@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import World from './components/World.jsx'
 import CameraRig from './components/CameraRig.jsx'
+import DayNightCycle from './components/lighting/DayNightCycle.jsx'
 import PlayerCharacter from './character/PlayerCharacter.jsx'
 import MobileControls from './controls/MobileControls.jsx'
 import UI from './components/UI.jsx'
@@ -26,6 +27,7 @@ export default function App() {
         }}
       >
         <color attach="background" args={[COLORS.horizon]} />
+        <DayNightCycle />
         <World />
         <PlayerCharacter />
         <CameraRig apiRef={cameraApi} />

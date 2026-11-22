@@ -249,3 +249,175 @@ kbd {
 .jump-button:active {
   background: rgba(58, 110, 67, 0.95);
 }
+
+/* ---------- time of day ---------- */
+.time-controls {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 14px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 20px rgba(20, 60, 100, 0.18);
+  color: #13314d;
+  width: min(430px, 92vw);
+}
+
+.time-controls.collapsed {
+  width: auto;
+  padding: 4px 6px;
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-clock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.time-clock strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.time-phase {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+.time-play {
+  font: inherit;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid #b9d3e8;
+  background: #fff;
+  cursor: pointer;
+  flex: none;
+}
+
+.time-speeds {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  background: rgba(19, 49, 77, 0.08);
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.time-speeds button {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: 999px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+.time-speeds button.active {
+  background: #2e5a36;
+  color: #fff;
+}
+
+.time-slider {
+  width: 100%;
+  margin: 6px 0 0;
+  accent-color: #2e5a36;
+}
+
+.time-controls button:focus-visible,
+.time-slider:focus-visible {
+  outline: 2px solid #13314d;
+  outline-offset: 2px;
+}
+
+/* touch: a clock pill under the title; when opened it spans the width below the
+   camera panel, clear of the joystick and jump button */
+.ui-touch .time-controls {
+  left: max(14px, env(safe-area-inset-left));
+  top: calc(max(14px, env(safe-area-inset-top)) + 118px);
+  transform: none;
+  width: calc(100vw - 28px);
+}
+
+.ui-touch .time-controls.collapsed {
+  top: calc(max(14px, env(safe-area-inset-top)) + 64px);
+  width: auto;
+}
+
+.ui-touch .time-speeds button {
+  padding: 3px 5px;
+}
+
+/* ---------- credits ---------- */
+.credits {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 20, 35, 0.45);
+  pointer-events: auto;
+  padding: 16px;
+}
+
+.credits-box {
+  background: #fff;
+  color: #13314d;
+  border-radius: 14px;
+  padding: 16px 20px;
+  max-width: 560px;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.credits-box h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.credits-box ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.credits-box a {
+  color: #1d5a8a;
+}
+
+.credits-note {
+  font-size: 0.78rem;
+  opacity: 0.8;
+}
+
+.credits-box button {
+  font: inherit;
+  font-weight: 600;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 16px;
+  background: #2e5a36;
+  color: #fff;
+  cursor: pointer;
+}
