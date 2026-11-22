@@ -1,3 +1,7 @@
 node_modules
 dist
 dev-dist
+
+# raw environment downloads (some over GitHub's 100 MB limit); the game uses the
+# optimised kits in public/assets/environment, rebuilt with npm run build:env
+Assets/environment-source/
