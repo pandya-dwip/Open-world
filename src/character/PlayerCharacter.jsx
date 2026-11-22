@@ -53,7 +53,7 @@ function Explorer() {
     stepPlayer(dt, active ? readMoveIntent(intent) : NO_INTENT, jump, camera)
     root.position.copy(player.position)
     root.rotation.y = player.yaw
-    animator.update(dt, playerSpeed(), player.grounded)
+    animator.update(dt, playerSpeed(), player.grounded, player.swimming)
   }, -2)
 
   return <primitive object={root} visible={envReady} />

@@ -3,14 +3,15 @@
 
 export const TIME = {
   startHour: 8.5,
-  defaultSpeed: '10x',
+  // 1x is real time: one game second per real second. It is always the default.
+  defaultSpeed: '1x',
   // game minutes that pass per real second
   speeds: {
-    real: { label: 'Real', gameMinutesPerSecond: 1 / 60 }, // game clock = wall clock
-    '1x': { label: '1×', gameMinutesPerSecond: 1 }, // one day lasts 24 minutes
-    '5x': { label: '5×', gameMinutesPerSecond: 5 },
-    '10x': { label: '10×', gameMinutesPerSecond: 10 }, // one day lasts 2.4 minutes
-    '30x': { label: '30×', gameMinutesPerSecond: 30 },
+    '1x': { label: '1×', gameMinutesPerSecond: 1 / 60 }, // real time: a full day takes 24 hours
+    '5x': { label: '5×', gameMinutesPerSecond: 5 / 60 },
+    '10x': { label: '10×', gameMinutesPerSecond: 10 / 60 },
+    '30x': { label: '30×', gameMinutesPerSecond: 30 / 60 },
+    '600x': { label: '600×', gameMinutesPerSecond: 10 }, // fast preview: a full day in 2.4 minutes
   },
   sunrise: 6.0, // sun on the horizon (centre of the 05:00-07:00 sunrise window)
   sunset: 18.6, // sun on the horizon (inside the 17:30-19:30 sunset window)

@@ -59,6 +59,12 @@ const KITS = {
       },
       ratio: (k, mat) => (/leaves|foliage/i.test(mat) ? 0.6 : 0.3),
     },
+    // newly added high-quality trees
+    { file: 'trees/tree_gn.glb', key: () => 'Tree_GN', ratio: () => 0.45, error: 0.05 },
+    { file: 'trees/treea.glb', key: () => 'Tree_A', ratio: () => 0.12, error: 0.06 },
+    // leaf-card trees from the forest scenes: cheap, for distant / high ground
+    { file: 'forest/a_forest_3_with_a_road_at_night_for_game.glb', key: firstOfEachKind('Forest_Card', ['2-1.1', '2-1.4', '2-1.7', '1-1.3', '1-1.0', '1-0.8']), ratio: () => 1 },
+    { file: 'forest/the_landscape_is_a_forest_in_the_mountains.glb', key: (n, c, tris) => (tris === 106 ? `Mtn_Card_${Math.round(c[0] * 10)}_${Math.round(c[2] * 10)}` : null), ratio: () => 1 },
   ],
   grass: [
     {
@@ -76,8 +82,52 @@ const KITS = {
       error: 0.1,
     },
   ],
-  mountains: [{ file: 'mountains/peak_mountain_hiking_trail.glb', key: () => 'Mountain', ratio: () => 0.08, error: 0.03 }],
+  mountains: [
+    { file: 'mountains/peak_mountain_hiking_trail.glb', key: () => 'Mountain', ratio: () => 0.05, error: 0.08 },
+    { file: 'mountains/cloudy_mountain.glb', key: () => 'Cloudy_Mountain', ratio: () => 0.3, error: 0.03 },
+  ],
+  houses: [
+    { file: 'houses/tree_house_1.glb', key: () => 'TreeHouse_Cottage', ratio: () => 1 },
+    { file: 'houses/treehouse_village.glb', key: () => 'TreeHouse_Village', ratio: () => 1 },
+    { file: 'houses/treehouse2.glb', key: () => 'TreeHouse_Stilts', ratio: () => 1 },
+    { file: 'houses/treehouse.glb', key: () => 'TreeHouse_Oak', ratio: () => 0.4, error: 0.03 },
+    { file: 'houses/tree_house.glb', key: (n) => (n.startsWith('Sphere_Envi') ? null : 'TreeHouse_Pines'), ratio: () => 0.5, error: 0.03 },
+    // the cabin and its surroundings from the diorama, without the diorama's ground block and pond
+    { file: 'houses/diorama_-_forest_loner.glb', key: (n) => (/^(Water|GroundPlane|HillRock|WaterRock)/.test(n) ? null : 'Cabin'), ratio: () => 0.3, error: 0.03 },
+    { file: 'houses/eco-house_diorama.glb', key: () => 'EcoHouse', ratio: () => 0.35, error: 0.03 },
+    { file: 'locations/japan_temple.glb', key: () => 'Temple', ratio: () => 1 },
+  ],
+  waterfalls: [
+    { file: 'waterfall/waterfall.glb', key: () => 'Waterfall_Cliff', ratio: () => 0.12, error: 0.02, lit: true },
+    { file: 'waterfall/seljalandsfoss_waterfall_iceland__3d_scan.glb', key: () => 'Waterfall_Valley', ratio: () => 0.08, error: 0.02, lit: true },
+  ],
 }
+
+/** Scans authored as "unlit" (baked lighting) become lit, so they follow the day-night cycle. */
+function litMaterials(doc) {
+  for (const ext of doc.getRoot().listExtensionsUsed()) if (ext.extensionName === 'KHR_materials_unlit') ext.dispose()
+  for (const m of doc.getRoot().listMaterials()) m.setMetallicFactor(0).setRoughnessFactor(0.95)
+}
+
+/** Picks one representative of each kind (material set + rounded height) from a scene of many small objects. */
+function firstOfEachKind(prefix, wanted) {
+  const chosen = new Map()
+  return (name, c, tris, node) => {
+    // the object is the node's group, unless the node sits directly in the big scene container
+    const parent = node.getParentNode()
+    const obj = parent && parent.listChildren().length < 20 ? parent : node
+    const b = getBounds(obj)
+    const mats = new Set()
+    obj.traverse((n) => n.getMesh()?.listPrimitives().forEach((p) => mats.add(p.getMaterial()?.getName())))
+    const kind = `${mats.size}-${(b.max[1] - b.min[1]).toFixed(1)}`
+    if (!wanted.includes(kind)) return null
+    if (!chosen.has(kind)) chosen.set(kind, obj)
+    return chosen.get(kind) === obj ? `${prefix}_${kind.replace(/[.-]/g, '_')}` : null
+  }
+}
+
+/** Texture size per kit (px); buildings have many textures and are seen from further away. */
+const TEXTURE_SIZE = { houses: 512 }
 
 const triCount = (mesh) => mesh.listPrimitives().reduce((t, p) => t + (p.getIndices()?.getCount() ?? 0) / 3, 0)
 
@@ -87,6 +137,7 @@ async function extract(def) {
   if (root.listExtensionsUsed().some((e) => e.extensionName === KHRMaterialsPBRSpecularGlossiness.EXTENSION_NAME)) {
     await doc.transform(metalRough())
   }
+  if (def.lit) litMaterials(doc)
   const scene = root.getDefaultScene() || root.listScenes()[0]
   const protos = new Map()
   const seen = new Set()
@@ -97,7 +148,7 @@ async function extract(def) {
     const name = def.parentKey ? node.getParentNode()?.getName() || '' : mesh.getName() || node.getName()
     const b = getBounds(node)
     const centre = b.max.map((v, i) => (v + b.min[i]) / 2)
-    const key = def.key(name, centre, triCount(mesh))
+    const key = def.key(name, centre, triCount(mesh), node)
     if (!key) return
     seen.add(key)
     if (!protos.has(key)) protos.set(key, [])
@@ -211,7 +262,7 @@ async function buildKit(name, defs) {
     unpartition(),
     dedup(),
     prune(),
-    textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 82 }),
+    textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [TEXTURE_SIZE[name] ?? 1024, TEXTURE_SIZE[name] ?? 1024], quality: 82 }),
     quantize(),
     meshopt({ encoder: MeshoptEncoder, level: 'medium' }),
   )
@@ -240,6 +291,43 @@ async function sandTextures() {
   }
 }
 
+/**
+ * Animated assets keep their structure and animation (morph targets, node
+ * animation, skinning): only textures are resized and meshes compressed.
+ */
+const ANIMATED = {
+  'ships/caravel.glb': { file: 'ships/caravel_ship.glb' },
+  'ships/galleon.glb': { file: 'ships/empty_ship.glb', simplify: 0.35 },
+  'ships/pinnace.glb': { file: 'ships/pirate_ship_rigged.glb', simplify: 0.35 },
+  'water/ocean_wave.glb': { file: 'water/ocean_wave.glb' },
+  'waterfalls/waterfall_splash.glb': { file: 'waterfall/looping_waterfall_objects_animation.glb', lit: false },
+}
+async function buildAnimated() {
+  for (const [out, def] of Object.entries(ANIMATED)) {
+    const doc = await io.read(path.join(SRC, def.file))
+    // static ships only: simplify their (non-morph) meshes
+    if (def.simplify) for (const m of doc.getRoot().listMeshes()) for (const prim of m.listPrimitives()) if (!prim.listTargets().length) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio: def.simplify, error: 0.02 })
+    await doc.transform(dedup(), prune(), textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 82 }), meshopt({ encoder: MeshoptEncoder, level: 'medium' }))
+    fs.mkdirSync(path.dirname(path.join(OUT, out)), { recursive: true })
+    await io.write(path.join(OUT, out), doc)
+    console.log(`=> ${out}  ${(fs.statSync(path.join(OUT, out)).size / 1e6).toFixed(2)} MB, animations: ${doc.getRoot().listAnimations().map((a) => a.getName()).join(', ') || 'none'}`)
+  }
+}
+
+/** Seamless mud-and-moss material for the walking paths (colour, normal, roughness). */
+async function pathTextures() {
+  const doc = await io.read(path.join(SRC, 'paths/puddled_mud_with_moss_-_pbr_seamless.glb'))
+  const mat = doc.getRoot().listMaterials()[0]
+  const maps = { albedo: mat.getBaseColorTexture(), normal: mat.getNormalTexture(), roughness: mat.getMetallicRoughnessTexture() }
+  fs.mkdirSync(path.join(OUT, 'paths'), { recursive: true })
+  for (const [k, tex] of Object.entries(maps)) {
+    if (!tex) continue
+    const out = path.join(OUT, `paths/mud_${k}.webp`)
+    await sharp(Buffer.from(tex.getImage())).resize(1024, 1024, { fit: 'inside' }).webp({ quality: 85 }).toFile(out)
+    console.log(`=> ${path.relative(ROOT, out)}`)
+  }
+}
+
 const only = process.argv[2]
 for (const [name, defs] of Object.entries(KITS)) {
   if (only && only !== name) continue
@@ -248,3 +336,5 @@ for (const [name, defs] of Object.entries(KITS)) {
   await buildKit(name, defs)
 }
 if (!only || only === 'sand') await sandTextures()
+if (!only || only === 'animated') await buildAnimated()
+if (!only || only === 'paths') await pathTextures()

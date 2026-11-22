@@ -92,7 +92,10 @@ function pickWeighted(rand, entries) {
  * @param mountain { x, z, radius } world-space mountain site
  * @param spawn { x, z } kept clear for the player
  */
-export function planEnvironment(lib, mountain, spawn) {
+/**
+ * @param layout result of planLayout(): zones, sites, paths, landmarks
+ */
+export function planEnvironment(lib, mountain, spawn, layout) {
   const rand = mulberry32(P.seed)
   const n = createNoise2D(P.seed)
   const grid = new FootprintGrid()
@@ -108,8 +111,9 @@ export function planEnvironment(lib, mountain, spawn) {
     const def = PROTOTYPES[name]
     const proto = lib.get(name)
     if (!def || !proto) return null
-    const scale = opts.scale ?? def.size[0] + rand() * (def.size[1] - def.size[0])
-    const footprint = Math.max(0.3, proto.radius * scale * (opts.footprint ?? 0.75))
+    const scale = opts.scale ??
+      (def.height ? (def.height[0] + rand() * (def.height[1] - def.height[0])) / proto.height : def.size[0] + rand() * (def.size[1] - def.size[0]))
+    const footprint = Math.max(0.3, proto.radius * scale * (opts.footprint ?? def.footprint ?? 0.75))
     if (!opts.overlap && !grid.free(x, z, footprint)) return null
     const ground = opts.cheapGround ? heightAt(x, z) : groundUnder(x, z, Math.min(footprint, 3) * 0.6)
     const sink = (opts.sink ?? def.sink ?? 0.03) * proto.height * scale
@@ -119,7 +123,7 @@ export function planEnvironment(lib, mountain, spawn) {
       x,
       y: (opts.y ?? ground) - sink,
       z,
-      rotY: rand() * Math.PI * 2,
+      rotY: opts.yaw ?? rand() * Math.PI * 2,
       tiltX: (rand() - 0.5) * (opts.tilt ?? 0),
       tiltZ: (rand() - 0.5) * (opts.tilt ?? 0),
       scale,
@@ -127,15 +131,37 @@ export function planEnvironment(lib, mountain, spawn) {
     }
     instances.push(inst)
     if (!opts.overlap) grid.add(x, z, footprint, true)
-    const solid = def.trunk ? def.trunk * scale : opts.collide ? footprint * 0.85 : 0
-    // tree trunks always block; rocks only when they are big enough to matter
-    if ((def.trunk ? solid > 0.08 : solid > 0.5) && inst.y + proto.height * scale > ground + 0.6) obstacles.push({ x, z, r: solid })
+    const trunk = def.trunkM ?? (def.trunk ? def.trunk * scale : 0)
+    const solid = trunk || (opts.collide ? footprint * 0.85 : 0)
+    // tree trunks always block; rocks and buildings only when they are big enough to matter
+    if ((trunk ? solid > 0.08 : solid > 0.5) && inst.y + proto.height * scale > ground + 0.6) obstacles.push({ x, z, r: solid })
     return inst
   }
   const forEachCell = (spacing, fn) => {
     for (let z = oz - R; z < oz + R; z += spacing) {
       for (let x = ox - R; x < ox + R; x += spacing) fn(x + rand() * spacing, z + rand() * spacing)
     }
+  }
+
+  // --- 0. layout: paths stay clear, buildings and landmarks claim their ground first
+  for (const path of layout.paths) {
+    for (let i = 0; i < path.length; i += 2) grid.add(path[i][0], path[i][1], P.layout.pathWidth * 0.5 + 0.9, true)
+  }
+  if (layout.cloudy) grid.add(layout.cloudy.x, layout.cloudy.z, 95, true)
+  if (layout.valley) grid.add(layout.valley.x, layout.valley.z, (lib.get('Waterfall_Valley')?.radius ?? 20) * 2.4 * 1.05, true)
+  if (layout.cliff) grid.add(layout.cliff.x, layout.cliff.z, 30, true)
+  const houseNames = ['Cabin', 'EcoHouse', 'Temple']
+  const treeHouseNames = ['TreeHouse_Cottage', 'TreeHouse_Village', 'TreeHouse_Stilts', 'TreeHouse_Oak', 'TreeHouse_Pines']
+  let hi = 0
+  let ti = 0
+  for (const site of layout.sites) {
+    if (site.kind !== 'house' && site.kind !== 'treeHouse') continue
+    const name = site.kind === 'house' ? houseNames[hi++ % houseNames.length] : treeHouseNames[ti++ % treeHouseNames.length]
+    // face the building towards where its path arrives
+    const node = layout.sites.reduce((best, s) => (s === site ? best : best && Math.hypot(best.x - site.x, best.z - site.z) < Math.hypot(s.x - site.x, s.z - site.z) ? best : s), null)
+    const yaw = Math.atan2(node.x - site.x, node.z - site.z)
+    place(name, site.x, site.z, { overlap: true, sink: 0.02, yaw, collide: true })
+    grid.add(site.x, site.z, site.kind === 'house' ? 14 : 8, true) // a small clearing around it
   }
 
   // --- 1. rocks where the mountain meets the foothills
@@ -196,52 +222,42 @@ export function planEnvironment(lib, mountain, spawn) {
     place(name, x, z, { scale: big ? 1.4 + rand() * 1.6 : 1.5 + rand() * 2.5, sink: 0.25, tilt: 0.3, collide: big })
   })
 
-  // --- 6. forests: dense clusters with clearings; conifers on high ground and the mountain
-  const conifers = [['pine1', 4], ['Pine2', 4], ['Pine_Tall_001', 1], ['Pine_Tall_002', 1], ['Pine_Young_001', 1.5], ['Pine_Young_003', 1.5]]
-  const broadleaf = [['tree2', 5], ['TreeSmall', 4], ['Pine2', 1]]
-  const heroes = [['Oak_A', 2], ['Oak_B', 2], ['Old_Tree', 1]]
-  const forestAt = (x, z) => {
-    const toMountain = Math.hypot(x - mountain.x, z - mountain.z) / mountain.radius
-    return fbm(n, x / P.forest.noiseScale + 3, z / P.forest.noiseScale - 8, 4) + 0.22 * smoothstep(1.6, 0.9, toMountain)
-  }
-  forEachCell(P.forest.spacing, (x, z) => {
-    const f = forestAt(x, z)
-    if (f < P.forest.threshold) return
+  // --- 6. trees: density rises from the beach to the dense forest, with natural
+  // clearings. High-quality trees on low ground, low-quality trees on high ground,
+  // blended across a band so there is no visible boundary.
+  // the heaviest models (oaks, old tree: 16-23k triangles) are feature trees; lighter ones carry the forest
+  const highQuality = [['Oak_A', 0.7], ['Oak_B', 0.7], ['Tree_GN', 3], ['Tree_A', 2], ['Old_Tree', 0.25], ['Pine_Tall_001', 1.3], ['Pine_Tall_002', 1.3], ['Pine_Young_001', 2.2], ['Pine_Young_003', 2]]
+  const lowQuality = [['pine1', 3], ['Pine2', 3], ['tree2', 3], ['TreeSmall', 2], ['Forest_Card_2_1_4', 2], ['Forest_Card_2_1_7', 2], ['Forest_Card_2_1_1', 2], ['Forest_Card_1_1_3', 1.5], ['Forest_Card_1_1_0', 1.5]]
+  const T = P.trees
+  forEachCell(T.spacing, (x, z) => {
     const s = sample(x, z)
     const ground = s.onMountain ? (s.slope < 0.42 && s.h - s.terrain < 70 ? 1 : 0) : s.grass
-    if (ground < 0.5 || s.slope > 0.5) return
-    if (rand() > D * smoothstep(P.forest.threshold, P.forest.threshold + 0.25, f)) return
-    const high = s.onMountain || s.h > P.forest.pineAbove
-    let name = pickWeighted(rand, high ? conifers : broadleaf)
-    if (!high && rand() < P.forest.heroChance * 4) name = pickWeighted(rand, heroes)
-    place(name, x, z, { sink: 0.03, tilt: 0.05 })
+    if (ground < 0.45 || s.slope > 0.5) return
+    let dens = s.onMountain ? 0.5 : layout.density(s.d)
+    const clearing = fbm(n, x / T.clearingScale + 3, z / T.clearingScale - 8, 3)
+    dens *= smoothstep(-0.45, -0.15, clearing) // open glades scattered through the forest
+    if (rand() > dens * D) return
+    // quality class by elevation, with a soft blended band
+    const high = rand() < smoothstep(T.highGround - 8, T.highGround + 8, s.h) || s.onMountain
+    // forest trees only reserve their core, so canopies overlap in the dense forest
+    place(pickWeighted(rand, high ? lowQuality : highQuality), x, z, { sink: 0.03, tilt: 0.05, footprint: 0.28 })
   })
 
-  // --- 7. scattered woodland and feature trees in open grassland
-  forEachCell(P.woodland.spacing, (x, z) => {
-    const s = sample(x, z)
-    if (s.grass < 0.7 || s.slope > 0.4 || s.d < 60) return
-    if (rand() > P.woodland.chance * D * (1 - smoothstep(P.forest.threshold - 0.1, P.forest.threshold, forestAt(x, z)))) return
-    const name = rand() < 0.12 ? pickWeighted(rand, heroes) : pickWeighted(rand, s.h > P.forest.pineAbove ? conifers : broadleaf)
-    place(name, x, z, { sink: 0.03, tilt: 0.05 })
-  })
-
-  // --- 8. palms in loose groups along the beaches
+  // --- 7. palms: a few along the beaches and in the beach transition, in loose groups
   forEachCell(P.palms.spacing, (x, z) => {
     const s = sample(x, z)
-    if (s.d < P.palms.minInland || s.d > P.palms.maxInland || s.h > 7 || s.slope > 0.3) return
+    if (s.d < P.palms.minInland || s.d > Math.min(P.palms.maxInland, layout.zones.light) || s.h > 7 || s.slope > 0.3) return
     const group = fbm(n, x / P.palms.clusterScale - 20, z / P.palms.clusterScale + 11, 2)
     if (rand() > P.palms.chance * D * smoothstep(-0.05, 0.3, group)) return
     place(rand() < 0.55 ? 'Palm_A' : 'Palm_B', x, z, { sink: 0.02, tilt: PROTOTYPES.Palm_A.lean })
   })
 
-  // --- 9. bushes and plants: forest edges, under-storey and grassland
-  const bushes = [['BushBig2', 2], ['BushMed', 3], ['BushMed2', 3], ['BushSmall', 3], ['BushSmall2', 3], ['BushFlowerSmall', 2], ['MushBig', 1], ['Plant_6', 2], ['Plant_7', 2], ['Plant_15', 2], ['Plant_16', 2]]
+  // --- 8. bushes and plants: sparse in the transition, thicker in the forest
+  const bushes = [['BushBig2', 2], ['BushMed', 3], ['BushMed2', 3], ['BushSmall', 3], ['BushSmall2', 3], ['BushFlowerSmall', 2], ['MushBig', 1], ['Plant_6', 2], ['Plant_7', 2], ['Plant_15', 2], ['Plant_16', 2], ['Forest_Card_1_0_8', 2]]
   forEachCell(P.bushes.spacing, (x, z) => {
     const s = sample(x, z)
     if (s.grass < 0.55 || s.slope > 0.45) return
-    const edge = 1 - Math.abs(forestAt(x, z) - P.forest.threshold) * 4 // most at forest edges
-    if (rand() > P.bushes.chance * D * (0.35 + Math.max(0, edge))) return
+    if (rand() > P.bushes.chance * D * (0.25 + layout.density(s.d))) return
     place(pickWeighted(rand, bushes), x, z, { sink: 0.08, footprint: 0.5 })
   })
 
@@ -259,6 +275,7 @@ export function planEnvironment(lib, mountain, spawn) {
     if (inlandAt(x, z) < P.grass.minInland) return // cheap test first: skip sea and beach
     const s = sample(x, z)
     if (s.grass < 0.45 || s.slope > 0.5) return
+    if (!grid.free(x, z, 1.4, true)) return // not on paths, under buildings or in rocks
     const patchy = 0.55 + 0.45 * fbm(n, x / 40 + 50, z / 40, 2)
     if (rand() > P.grass.chance * D * s.grass * patchy) return
     const tufts = 2 + Math.floor(rand() * 3)

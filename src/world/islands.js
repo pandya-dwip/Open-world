@@ -35,6 +35,8 @@ const DEFS = [
     // yaw, scale and base height. Foothills (radius / height) rise around it, and
     // the terrain also extends the model's own slopes outwards (see mountainField.js).
     mountain: { x: -40, z: -150, yaw: 0, scale: 1.05, y0: 6, radius: 360, height: 22 },
+    // second high point for the downloaded cloudy mountain: a broad hill on the north-east peninsula
+    peak: { x: 380, z: -225, radius: 170, height: 34 },
   },
 ]
 
@@ -83,8 +85,9 @@ function buildIsland(def) {
     const hills = Math.max(0, fbm(n, x / 120 - 9, z / 120 + 4, 3)) * 22
     const rM = Math.hypot(x - M.x, z - M.z)
     const foot = M.height * smoothstep(M.radius, M.radius * 0.28, rM)
+    const pk = def.peak ? def.peak.height * smoothstep(def.peak.radius, def.peak.radius * 0.2, Math.hypot(x - def.peak.x, z - def.peak.z)) : 0
     const footBumps = fbm(n, x / 60, z / 60, 3) * 7 * smoothstep(M.radius, M.radius * 0.5, rM)
-    return dunes + inland * (2 + rolling + hills * smoothstep(60, 220, d) + foot + footBumps)
+    return dunes + inland * (2 + rolling + hills * smoothstep(60, 220, d) + foot + footBumps) + pk * smoothstep(5, 60, d)
   }
 
   // set by the terrain worker: terrain height required around the mountain model

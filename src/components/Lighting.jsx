@@ -76,7 +76,7 @@ export default function Lighting() {
     // level-of-detail swaps while moving change the casters: refresh periodically
     // the character moves and animates: keep its shadow live while playing
     if (cameraMoved || getMode() === 'player') st.moved = true
-    const every = getMode() === 'player' ? 1 : throttle
+    const every = getMode() === 'player' ? 2 : throttle // refresh the moving character's shadow every other frame
     if (st.moved && (st.frames >= every || !cameraMoved)) {
       gl.shadowMap.needsUpdate = true
       st.frames = 0

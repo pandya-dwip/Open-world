@@ -1,13 +1,14 @@
 // Animation blending for the explorer: idle / walk / run follow the actual
-// ground speed (playback rate scaled so feet don't slide), and jumping plays
-// take-off -> mid-air loop -> landing. All clips play continuously and only
-// their weights change, so every transition is a smooth cross-fade.
+// ground speed (playback rate scaled so feet don't slide), jumping plays
+// take-off -> mid-air loop -> landing, and in deep water swim-idle / swim-forward
+// take over. All clips play continuously and only their weights change, so
+// every transition is a smooth cross-fade.
 import * as THREE from 'three'
 import { CHARACTER_ASSET as A, MOVE } from './characterConfig.js'
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x)
 const damp = (rate, dt) => 1 - Math.exp(-rate * dt)
-const NAMES = ['idle', 'walk', 'run', 'jumpStart', 'jumpLoop', 'jumpLand']
+const NAMES = ['idle', 'walk', 'run', 'jumpStart', 'jumpLoop', 'jumpLand', 'swimIdle', 'swim']
 
 export class CharacterAnimator {
   constructor(root, clips) {
@@ -33,8 +34,9 @@ export class CharacterAnimator {
     this.landT = 0
   }
 
-  update(dt, speed, grounded) {
+  update(dt, speed, grounded, swimming = false) {
     const act = this.actions
+    if (swimming) grounded = true // no take-off / landing events in the water
     // events: take-off and landing restart their one-shot clips
     if (!grounded && this.wasGrounded) {
       act.jumpStart.reset().play()
@@ -58,9 +60,16 @@ export class CharacterAnimator {
     t.idle = 1 - moving
     t.walk = moving * (1 - running)
     t.run = moving * running
-    t.jumpStart = t.jumpLoop = t.jumpLand = 0
+    t.jumpStart = t.jumpLoop = t.jumpLand = t.swimIdle = t.swim = 0
 
-    if (!grounded) {
+    if (swimming) {
+      // treading water when still, swimming strokes when moving
+      const stroke = clamp01(speed / (MOVE.swimSpeed * 0.6))
+      t.idle = t.walk = t.run = 0
+      t.swimIdle = 1 - stroke
+      t.swim = stroke
+      this.landT = 0
+    } else if (!grounded) {
       // take-off clip first, then the airborne loop
       const intoLoop = clamp01((this.airTime - 0.3) / 0.25)
       t.idle = t.walk = t.run = 0
@@ -78,6 +87,7 @@ export class CharacterAnimator {
     // playback rate follows real speed: no foot sliding
     act.walk.timeScale = Math.max(speed, 0.5) / A.clipSpeed.walk
     act.run.timeScale = Math.max(speed, 2) / A.clipSpeed.run
+    act.swim.timeScale = Math.max(speed, 0.8) / A.clipSpeed.swim
 
     let sum = 0
     const k = damp(A.blendRate * (grounded ? 1 : 1.6), dt)

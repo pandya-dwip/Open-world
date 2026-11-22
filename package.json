@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "icons": "node scripts/generate-icons.mjs",
-    "build:env": "node --max-old-space-size=12000 scripts/build-environment.mjs"
+    "build:env": "node --max-old-space-size=12000 scripts/build-environment.mjs",
+    "build:character": "node scripts/build-character-animations.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

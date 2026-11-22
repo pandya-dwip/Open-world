@@ -1,8 +1,8 @@
 // Kinematic character controller: camera-relative movement, smooth
-// acceleration and turning, jumping under gravity and simple ground collision
-// against the terrain height field. Frame-rate independent; no allocations
-// per frame. Collision is a single `groundAt` / `canStandAt` pair, so future
-// obstacles can be added in one place.
+// acceleration and turning, jumping under gravity, swimming in deep water and
+// simple collision against the terrain height field and obstacles.
+// Frame-rate independent; no allocations per frame. Collision is a single
+// `groundAt` / `canStandAt` pair, so future obstacles can be added in one place.
 import * as THREE from 'three'
 import { MOVE } from './characterConfig.js'
 import { blockedAt, heightAt } from '../world/worldStore.js'
@@ -13,6 +13,7 @@ export const player = {
   velocity: new THREE.Vector3(), // horizontal velocity in x/z, vertical in y
   yaw: 0, // facing angle; 0 = +Z
   grounded: true,
+  swimming: false, // in deep water: floats at the surface, swims instead of walking
   ready: false, // set once the island exists and the character is spawned
 }
 
@@ -24,15 +25,18 @@ export const groundAt = (x, z) => heightAt(x, z)
 const BODY_RADIUS = 0.35
 
 /**
- * Whether the character may move to a point: not into deep water, not into a
- * tree trunk or large rock, and not up a slope steeper than it can climb.
+ * Whether the character may move to a point: not into a tree trunk, rock or
+ * other obstacle, not up a slope steeper than it can climb, and not further
+ * out to sea than the swimming limit.
  */
 export function canStandAt(x, z) {
+  if (Math.hypot(x, z) > MOVE.maxSwimRadius || blockedAt(x, z, BODY_RADIUS)) return false
   const g = groundAt(x, z)
-  if (g < MOVE.minGroundHeight || blockedAt(x, z, BODY_RADIUS)) return false
   const p = player.position
   const step = Math.hypot(x - p.x, z - p.z)
-  return !player.grounded || g - p.y <= step * MOVE.maxClimb + 0.05
+  // climbing out of the water onto a ledge counts from the water surface
+  const from = player.swimming ? Math.max(p.y, MOVE.swimHeight) : p.y
+  return !(player.grounded || player.swimming) || g - from <= step * MOVE.maxClimb + 0.05 || g < MOVE.swimDepth
 }
 
 /** Put the character at the spawn point chosen by the environment (facing the mountain). */
@@ -41,6 +45,7 @@ export function spawnPlayer(spawn) {
   player.velocity.set(0, 0, 0)
   player.yaw = spawn.yaw
   player.grounded = true
+  player.swimming = false
   player.ready = true
 }
 
@@ -68,10 +73,13 @@ export function stepPlayer(dt, intent, jump, camera) {
   wish.set(0, 0, 0).addScaledVector(fwd, intent.y).addScaledVector(right, intent.x)
   const amount = Math.min(1, wish.length()) // analog stick magnitude, <= 1 (no fast diagonals)
   if (amount > 1e-3) wish.normalize()
-  const targetSpeed = amount * (intent.sprint ? MOVE.runSpeed : MOVE.walkSpeed)
+  const targetSpeed = p.swimming
+    ? amount * (intent.sprint ? MOVE.swimFastSpeed : MOVE.swimSpeed)
+    : amount * (intent.sprint ? MOVE.runSpeed : MOVE.walkSpeed)
 
-  // accelerate towards the wished horizontal velocity
-  const rate = (amount > 1e-3 ? MOVE.acceleration : MOVE.deceleration) * (p.grounded ? 1 : MOVE.airControl)
+  // accelerate towards the wished horizontal velocity (water slows starts and stops a little)
+  const control = p.swimming ? 0.6 : p.grounded ? 1 : MOVE.airControl
+  const rate = (amount > 1e-3 ? MOVE.acceleration : MOVE.deceleration) * control
   const k = dampF(rate, dt)
   p.velocity.x += (wish.x * targetSpeed - p.velocity.x) * k
   p.velocity.z += (wish.z * targetSpeed - p.velocity.z) * k
@@ -102,8 +110,24 @@ export function stepPlayer(dt, intent, jump, camera) {
     p.velocity.z = 0
   }
 
-  // vertical: jump, gravity and ground contact
+  // water: switch to swimming in deep water, back to walking where it is shallow
   const ground = groundAt(p.position.x, p.position.z)
+  if (!p.swimming && ground < MOVE.swimDepth && p.position.y <= MOVE.swimHeight + 0.6) {
+    p.swimming = true
+    p.grounded = false
+  } else if (p.swimming && ground > MOVE.swimExitDepth) {
+    p.swimming = false
+    p.grounded = true
+  }
+  if (p.swimming) {
+    // float at the surface with a gentle bob; no jumping, no walking on the sea floor
+    const bob = Math.sin(performance.now() * 0.0022) * 0.04
+    p.position.y += (MOVE.swimHeight + bob - p.position.y) * dampF(4, dt)
+    p.velocity.y = 0
+    return
+  }
+
+  // vertical: jump, gravity and ground contact
   if (p.grounded && jump) {
     p.velocity.y = MOVE.jumpVelocity
     p.grounded = false
@@ -117,7 +141,7 @@ export function stepPlayer(dt, intent, jump, camera) {
       p.grounded = true
     }
   } else {
-    // stay glued to the (gently sloping) sand; walk off a drop -> start falling
+    // stay glued to the (gently sloping) ground; walk off a drop -> start falling
     if (p.position.y - ground > 0.35) {
       p.grounded = false
     } else {

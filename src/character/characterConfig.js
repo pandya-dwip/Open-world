@@ -2,15 +2,22 @@
 // World units are metres: the explorer model is about 1.8 units tall.
 
 export const MOVE = {
-  walkSpeed: 1.5, // m/s
-  runSpeed: 6.0, // m/s with Shift (or a full joystick push on touch)
+  // Movement speeds. Walking is 1.2x and running 2x the previous speeds (1.5 / 6 m/s).
+  walkSpeed: 1.8, // m/s
+  runSpeed: 12.0, // m/s with Shift (or a full joystick push on touch)
+  swimSpeed: 2.2, // m/s in deep water
+  swimFastSpeed: 3.6, // m/s swimming with Shift / full joystick push
   acceleration: 9, // how quickly velocity approaches the target (1/s)
   deceleration: 11, // how quickly the character stops when input is released
   airControl: 0.35, // fraction of ground acceleration while airborne
   turnSpeed: 11, // how quickly the body turns towards the movement direction (1/s)
   jumpVelocity: 6.4, // m/s upwards; ~1 m high with the gravity below
   gravity: 20, // m/s²
-  minGroundHeight: -0.4, // the character may wade into ankle-deep water, no further
+  // water: sea level is y = 0. Deeper than `swimDepth` the character swims.
+  swimDepth: -1.25, // sea floor below this -> swim (leave again above swimExitDepth)
+  swimExitDepth: -1.0,
+  swimHeight: -1.12, // where the character's root (feet line) floats while swimming
+  maxSwimRadius: 2300, // how far out to sea the character can swim (m from the island centre)
   maxClimb: 1.2, // steepest walkable slope (rise / run, ~50°); steeper rock faces block
 }
 
@@ -21,14 +28,16 @@ export const CHARACTER_ASSET = {
   clips: {
     idle: 'Idle_Loop',
     walk: 'Walk_Loop',
-    run: 'Jog_Fwd_Loop',
+    run: 'Sprint_Loop',
+    swimIdle: 'Swim_Idle_Loop',
+    swim: 'Swim_Fwd_Loop',
     jumpStart: 'Jump_Start',
     jumpLoop: 'Jump_Loop',
     jumpLand: 'Jump_Land',
   },
   // distance each locomotion clip covers per second at normal playback speed (measured
   // from the library's root-motion version); playback is scaled to the real speed so feet don't slide
-  clipSpeed: { walk: 0.98, run: 5.38 },
+  clipSpeed: { walk: 0.98, run: 8.21, swim: 1.6 },
   jumpStartOffset: 0.38, // skip the clip's wind-up: the jump itself starts at once on Space
   jumpStartRate: 1.5,
   landRate: 1.7,

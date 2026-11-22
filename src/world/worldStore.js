@@ -94,6 +94,15 @@ export function setObstacles(list) {
     obstacleCells.get(k).push(o)
   }
 }
+/** Add more obstacles (e.g. ships) to the existing set. */
+export function addObstacles(list) {
+  for (const o of list) {
+    const k = obKey(Math.floor(o.x / OB_CELL), Math.floor(o.z / OB_CELL))
+    if (!obstacleCells.has(k)) obstacleCells.set(k, [])
+    obstacleCells.get(k).push(o)
+  }
+}
+
 /** true if a circle of radius r at (x, z) overlaps an obstacle */
 export function blockedAt(x, z, r) {
   const i0 = Math.floor(x / OB_CELL)
