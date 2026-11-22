@@ -2,6 +2,7 @@ node_modules
 dist
 dev-dist
 
-# raw environment downloads (some over GitHub's 100 MB limit); the game uses the
-# optimised kits in public/assets/environment, rebuilt with npm run build:env
-Assets/environment-source/
+# local asset folder: character reference images and raw environment downloads
+# (some over GitHub's 100 MB limit). Not needed to run the game: it uses the
+# optimised files in public/assets, rebuilt from these with npm run build:env
+Assets/
