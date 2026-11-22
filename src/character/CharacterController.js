@@ -61,8 +61,16 @@ const UP = new THREE.Vector3(0, 1, 0)
  * @param jump true if a jump was requested this frame
  * @param camera the active camera: movement is relative to its horizontal view direction
  */
+// forgiving jumps: a press shortly before landing still counts, and so does one
+// just after running off an edge or over a bump (common at running speed)
+const JUMP_BUFFER = 0.18
+const COYOTE_TIME = 0.15
+let jumpBuffer = 0
+let airTime = 0
+
 export function stepPlayer(dt, intent, jump, camera) {
   const p = player
+  jumpBuffer = jump ? JUMP_BUFFER : Math.max(0, jumpBuffer - dt)
   // camera-relative directions on the ground plane
   camera.getWorldDirection(fwd)
   fwd.y = 0
@@ -128,9 +136,12 @@ export function stepPlayer(dt, intent, jump, camera) {
   }
 
   // vertical: jump, gravity and ground contact
-  if (p.grounded && jump) {
+  airTime = p.grounded ? 0 : airTime + dt
+  if (jumpBuffer > 0 && (p.grounded || (airTime < COYOTE_TIME && p.velocity.y <= 0))) {
     p.velocity.y = MOVE.jumpVelocity
     p.grounded = false
+    jumpBuffer = 0
+    airTime = COYOTE_TIME
   }
   if (!p.grounded) {
     p.velocity.y -= MOVE.gravity * dt
@@ -142,7 +153,9 @@ export function stepPlayer(dt, intent, jump, camera) {
     }
   } else {
     // stay glued to the (gently sloping) ground; walk off a drop -> start falling
-    if (p.position.y - ground > 0.35) {
+    // allowed drop grows with the distance moved this frame, so running downhill stays on the ground
+    const stepLen = Math.hypot(p.velocity.x, p.velocity.z) * dt
+    if (p.position.y - ground > 0.35 + stepLen * 0.9) {
       p.grounded = false
     } else {
       p.position.y = ground

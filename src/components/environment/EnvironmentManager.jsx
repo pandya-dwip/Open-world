@@ -1,14 +1,12 @@
 import { Suspense, use, useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
-import * as THREE from 'three'
-import { KITS, MOUNTAIN_HEIGHTMAP, PATH_TEXTURES, PLACEMENT } from '../../environment/environmentConfig.js'
+import { KITS, MOUNTAIN_HEIGHTMAP } from '../../environment/environmentConfig.js'
 import { buildLibrary } from '../../environment/prototypes.js'
 import { planLayout } from '../../environment/layout.js'
 import { planEnvironment } from '../../environment/placement.js'
 import { ScatterField } from '../../environment/ScatterField.js'
 import { buildLandmarks } from '../../environment/landmarks.js'
-import { buildPathGeometry, createPathMaterial } from '../../environment/pathMesh.js'
 import { findSpawn, loadMountainHeightMap, setupMountain } from '../../environment/mountain.js'
 import { addHeightField, setEnvironmentReady, setObstacles, useWorld } from '../../world/worldStore.js'
 import Ships from './Ships.jsx'
@@ -20,8 +18,8 @@ const KIT_URLS = KIT_NAMES.map((k) => KITS[k])
 
 /**
  * The island's environment, all from the downloaded assets: mountains,
- * forests with a beach-to-dense-forest gradient, houses and tree houses, a
- * connected path network, waterfalls, rocks, grass, ships and beach waves.
+ * forests with a beach-to-dense-forest gradient, houses and tree houses,
+ * waterfalls, rocks, grass, ships and beach waves.
  * Builds once the terrain exists; the loading screen waits for all of it.
  */
 export default function EnvironmentManager() {
@@ -52,10 +50,6 @@ function Environment() {
     const landmarks = buildLandmarks(lib, layout)
     setObstacles([...plan.obstacles, ...landmarks.obstacles])
     const field = new ScatterField(plan.instances, lib)
-    const paths = new THREE.Mesh(buildPathGeometry(layout.paths, PLACEMENT.layout.pathWidth), createPathMaterial(PATH_TEXTURES))
-    paths.name = 'Paths'
-    paths.receiveShadow = true
-    paths.renderOrder = 1
     if (import.meta.env.DEV) {
       const counts = {}
       for (const i of plan.instances) counts[i.category] = (counts[i.category] || 0) + 1
@@ -63,12 +57,12 @@ function Environment() {
       for (const s of layout.sites) kinds[s.kind] = (kinds[s.kind] || 0) + 1
       console.info(
         `[environment] ${plan.instances.length} objects ${JSON.stringify(counts)}; sites ${JSON.stringify(kinds)}; ` +
-          `${layout.paths.length} paths (${Math.round(layout.paths.reduce((s, p) => s + p.length * 1.5, 0))} m); ${layout.ships.length} ships; ` +
+          `${layout.ships.length} ships; ` +
           `${layout.waves.length} wave patches; zones ${JSON.stringify(Object.fromEntries(Object.entries(layout.zones).map(([k, v]) => [k, Math.round(v)])))}; ` +
           `built in ${Math.round(performance.now() - t0)} ms`,
       )
     }
-    built = { mountain, field, spawn, layout, landmarks, paths }
+    built = { mountain, field, spawn, layout, landmarks }
     return built
   }, [gltfs, heightMap])
 
@@ -79,7 +73,6 @@ function Environment() {
     <>
       <primitive object={env.mountain.object} />
       <primitive object={env.landmarks.group} />
-      <primitive object={env.paths} />
       <primitive object={env.field.group} />
       <Ships ships={env.layout.ships} />
       <BeachWaves waves={env.layout.waves} />

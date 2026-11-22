@@ -30,7 +30,6 @@ export const CREDITS = [
   { title: 'treehouse village', author: 'alexkonkler', source: sf('treehouse-village-d93e46b3bd0f4cd888eeec581e35132f'), license: BY },
   { title: 'Japan Temple', author: 'Dinh Vi', source: sf('japan-temple-fbe52ed7c183432dbd5a12cfbf169bb0'), license: BY },
   { title: 'Cloudy Mountain', author: "Per's Scan Collection", source: sf('cloudy-mountain-f61d84c6534d4007accdeac35f433119'), license: BY },
-  { title: 'Puddled Mud with Moss - PBR Seamless (path texture)', author: '-Arthur-', source: sf('puddled-mud-with-moss-pbr-seamless-3c8f1977a3e94ab5a5701444446af58a'), license: BY },
   { title: 'Waterfall', author: 'Digitise3D', source: sf('waterfall-d2584b93416a4bf6b543e520a8583d5d'), license: BY },
   { title: 'Seljalandsfoss Waterfall, Iceland | 3D Scan', author: 'Sircher', source: sf('seljalandsfoss-waterfall-iceland-3d-scan-2067359ca7e34aeda250bd20b1ea3881'), license: BY },
   { title: 'looping Waterfall (objects animation)', author: 'Elin', source: sf('looping-waterfall-objects-animation-2f0a1d6acccd429eb3a60bf234d8bd96'), license: BY },

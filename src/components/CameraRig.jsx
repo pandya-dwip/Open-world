@@ -8,7 +8,7 @@ import { getMode, useMode } from '../game/gameStore.js'
 import { clearInput } from '../controls/playerInput.js'
 import { player } from '../character/CharacterController.js'
 import { FREE_CAMERA, THIRD_PERSON } from '../character/characterConfig.js'
-import { beginThirdPerson, updateThirdPerson } from '../camera/thirdPerson.js'
+import { beginThirdPerson, isTransitioning, updateThirdPerson } from '../camera/thirdPerson.js'
 
 const KEYMAP = {
   KeyW: 'f', ArrowUp: 'f',
@@ -21,6 +21,9 @@ const forward = new THREE.Vector3()
 const right = new THREE.Vector3()
 const move = new THREE.Vector3()
 const UP = new THREE.Vector3(0, 1, 0)
+const lookOffset = new THREE.Vector3()
+const lookSpherical = new THREE.Spherical()
+const LOOK_SENSITIVITY = 0.0028 // radians per pixel of mouse / touchpad movement
 
 // OrbitControls limits per camera mode
 const FREE_LIMITS = { minDistance: 3, maxDistance: 2400, maxPolarAngle: Math.PI * 0.47, enablePan: true, zoomSpeed: 0.9 }
@@ -44,6 +47,8 @@ export default function CameraRig({ apiRef }) {
   const keys = useRef(new Set())
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
+  const canvas = useThree((s) => s.gl.domElement)
+  const look = useRef({ dx: 0, dy: 0 })
 
   // Portrait screens: widen the vertical FOV so the horizontal view stays usable.
   useEffect(() => {
@@ -82,6 +87,7 @@ export default function CameraRig({ apiRef }) {
     camera.updateProjectionMatrix()
     // later switches keep the current viewing direction (no sudden swing)
     if (mode === 'player' && prevMode.current === 'free') pendingFlyIn.current = { behind: false }
+    if (mode === 'free' && document.pointerLockElement) document.exitPointerLock()
     prevMode.current = mode
   }, [mode, camera])
 
@@ -115,6 +121,31 @@ export default function CameraRig({ apiRef }) {
     }
   }, [])
 
+  // Mouse / touchpad look (third person): click the game to capture the cursor,
+  // then plain mouse or touchpad movement turns the camera, with no button held,
+  // so it works while walking or running. Esc releases the cursor.
+  useEffect(() => {
+    const onClick = () => {
+      if (getMode() !== 'player' || document.pointerLockElement === canvas || matchMedia('(pointer: coarse)').matches) return
+      try {
+        canvas.requestPointerLock()?.catch?.(() => {})
+      } catch {
+        /* not supported: drag-to-rotate still works */
+      }
+    }
+    const onMove = (e) => {
+      if (document.pointerLockElement !== canvas) return
+      look.current.dx += e.movementX
+      look.current.dy += e.movementY
+    }
+    canvas.addEventListener('click', onClick)
+    document.addEventListener('mousemove', onMove)
+    return () => {
+      canvas.removeEventListener('click', onClick)
+      document.removeEventListener('mousemove', onMove)
+    }
+  }, [canvas])
+
   useFrame((_, rawDelta) => {
     const c = controls.current
     if (!c) return
@@ -127,6 +158,18 @@ export default function CameraRig({ apiRef }) {
         pendingFlyIn.current = null
       }
       updateThirdPerson(delta, camera, c)
+      const l = look.current
+      if ((l.dx || l.dy) && !isTransitioning()) {
+        // orbit the camera around the character
+        lookOffset.subVectors(camera.position, c.target)
+        lookSpherical.setFromVector3(lookOffset)
+        lookSpherical.theta -= l.dx * LOOK_SENSITIVITY
+        lookSpherical.phi = THREE.MathUtils.clamp(lookSpherical.phi - l.dy * LOOK_SENSITIVITY, 0.2, PLAYER_LIMITS.maxPolarAngle)
+        camera.position.copy(c.target).add(lookOffset.setFromSpherical(lookSpherical))
+        camera.lookAt(c.target)
+      }
+      l.dx = 0
+      l.dy = 0
       const minY = Math.max(heightAt(camera.position.x, camera.position.z), 0) + THIRD_PERSON.minHeightAboveGround
       if (camera.position.y < minY) camera.position.y = minY
       return

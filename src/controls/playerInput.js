@@ -8,7 +8,7 @@ const KEYMAP = {
   KeyS: 'back', ArrowDown: 'back',
   KeyA: 'left', ArrowLeft: 'left',
   KeyD: 'right', ArrowRight: 'right',
-  ShiftLeft: 'sprint', ShiftRight: 'sprint',
+  KeyX: 'sprint', ShiftLeft: 'sprint', ShiftRight: 'sprint',
   Space: 'jump',
 }
 
@@ -69,6 +69,8 @@ export function readMoveIntent(out) {
   const k = input.keys
   let x = (k.has('right') ? 1 : 0) - (k.has('left') ? 1 : 0)
   let y = (k.has('forward') ? 1 : 0) - (k.has('back') ? 1 : 0)
+  // X on its own runs straight ahead; X with a direction key runs that way
+  if (k.has('sprint') && !x && !y && !input.joystick.x && !input.joystick.y) y = 1
   x += input.joystick.x
   y += input.joystick.y
   const len = Math.hypot(x, y)
@@ -78,7 +80,7 @@ export function readMoveIntent(out) {
   }
   out.x = x
   out.y = y
-  // sprint: Shift on desktop, or pushing the stick right to its edge on touch
+  // sprint: X (or Shift) on desktop, or pushing the stick right to its edge on touch
   out.sprint = k.has('sprint') || Math.hypot(input.joystick.x, input.joystick.y) > 0.92
   return out
 }

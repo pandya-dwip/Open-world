@@ -44,81 +44,6 @@ function marchToInland(x, z, dx, dz, target, maxDist = 2000) {
   return null
 }
 
-/** Catmull-Rom through points, resampled every `step` metres. */
-function smoothPolyline(pts, step) {
-  const out = []
-  const P2 = [pts[0], ...pts, pts[pts.length - 1]]
-  for (let i = 1; i < P2.length - 2; i++) {
-    const [p0, p1, p2, p3] = [P2[i - 1], P2[i], P2[i + 1], P2[i + 2]]
-    const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
-    const n = Math.max(1, Math.ceil(len / step))
-    for (let k = 0; k < n; k++) {
-      const t = k / n
-      const t2 = t * t
-      const t3 = t2 * t
-      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3)
-      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])])
-    }
-  }
-  out.push(pts[pts.length - 1])
-  return out
-}
-
-/**
- * Route a path between two points: a gently curving line whose control points
- * are nudged away from steep ground, water and the mountain where possible.
- */
-function routePath(a, b, rand) {
-  const len = Math.hypot(b[0] - a[0], b[1] - a[1])
-  const n = Math.max(2, Math.round(len / 45))
-  const nx = -(b[1] - a[1]) / len
-  const nz = (b[0] - a[0]) / len
-  const ctrl = [a]
-  for (let i = 1; i < n; i++) {
-    const t = i / n
-    let best = null
-    let bestCost = Infinity
-    const wiggle = (rand() - 0.5) * len * 0.12
-    for (const off of [0, -14, 14, -28, 28, -42, 42]) {
-      const x = a[0] + (b[0] - a[0]) * t + nx * (wiggle + off)
-      const z = a[1] + (b[1] - a[1]) * t + nz * (wiggle + off)
-      const d = inlandAt(x, z)
-      const h = heightAt(x, z)
-      const prev = ctrl[ctrl.length - 1]
-      const climb = Math.abs(h - heightAt(prev[0], prev[1])) / Math.max(1, Math.hypot(x - prev[0], z - prev[1]))
-      const cost = Math.abs(off) * 0.4 + climb * 120 + (d < 12 ? 400 : 0) + (onMountain(x, z) ? 250 : 0)
-      if (cost < bestCost) {
-        bestCost = cost
-        best = [x, z]
-      }
-    }
-    ctrl.push(best)
-  }
-  ctrl.push(b)
-  return smoothPolyline(ctrl, 1.5)
-}
-
-/** Minimum spanning tree (Prim) over node positions, with a slope-aware cost. */
-function spanningTree(nodes) {
-  const inTree = new Set([0])
-  const edges = []
-  while (inTree.size < nodes.length) {
-    let best = null
-    for (const i of inTree) {
-      for (let j = 0; j < nodes.length; j++) {
-        if (inTree.has(j)) continue
-        const a = nodes[i]
-        const b = nodes[j]
-        const cost = Math.hypot(a.x - b.x, a.z - b.z) + Math.abs(heightAt(a.x, a.z) - heightAt(b.x, b.z)) * 4
-        if (!best || cost < best.cost) best = { i, j, cost }
-      }
-    }
-    inTree.add(best.j)
-    edges.push([best.i, best.j])
-  }
-  return edges
-}
-
 /**
  * @param mountain { x, z, radius } world-space main mountain
  * @param spawn { x, z } player start (on the southern beach)
@@ -247,16 +172,6 @@ export function planLayout(mountain, spawn) {
     sites.push({ x: cloudy.x - ((cloudy.x - OX) / l) * 120, z: cloudy.z - ((cloudy.z - OZ) / l) * 120, kind: 'lookout' })
   }
 
-  // --- path network: buildings get their path to the front door, not through them
-  const centre = sites.reduce((c, s) => [c[0] + s.x / sites.length, c[1] + s.z / sites.length], [0, 0])
-  const nodes = sites.map((s) => {
-    if (s.kind !== 'house' && s.kind !== 'treeHouse') return { ...s }
-    const l = Math.hypot(centre[0] - s.x, centre[1] - s.z) || 1
-    const off = s.kind === 'house' ? 17 : 13
-    return { ...s, x: s.x + ((centre[0] - s.x) / l) * off, z: s.z + ((centre[1] - s.z) / l) * off }
-  })
-  const paths = spanningTree(nodes).map(([i, j]) => routePath([nodes[i].x, nodes[i].z], [nodes[j].x, nodes[j].z], rand))
-
   // --- ocean: ships offshore, spread around the island
   const ships = []
   P.ships.forEach((def, k) => {
@@ -278,5 +193,5 @@ export function planLayout(mountain, spawn) {
     waves.push({ coastX: p[0], coastZ: p[1], x: p[0] - ix * W.offshore, z: p[1] - iz * W.offshore, yaw: Math.atan2(ix, iz), phase: rand() * 4 })
   }
 
-  return { zones, density, sites, paths, ships, waves, valley, cliff, cloudy }
+  return { zones, density, sites, ships, waves, valley, cliff, cloudy }
 }

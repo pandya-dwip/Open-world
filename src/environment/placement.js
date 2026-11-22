@@ -93,7 +93,7 @@ function pickWeighted(rand, entries) {
  * @param spawn { x, z } kept clear for the player
  */
 /**
- * @param layout result of planLayout(): zones, sites, paths, landmarks
+ * @param layout result of planLayout(): zones, sites, landmarks
  */
 export function planEnvironment(lib, mountain, spawn, layout) {
   const rand = mulberry32(P.seed)
@@ -143,10 +143,8 @@ export function planEnvironment(lib, mountain, spawn, layout) {
     }
   }
 
-  // --- 0. layout: paths stay clear, buildings and landmarks claim their ground first
-  for (const path of layout.paths) {
-    for (let i = 0; i < path.length; i += 2) grid.add(path[i][0], path[i][1], P.layout.pathWidth * 0.5 + 0.9, true)
-  }
+  // --- 0. layout: buildings and landmarks claim their ground first
+
   if (layout.cloudy) grid.add(layout.cloudy.x, layout.cloudy.z, 95, true)
   if (layout.valley) grid.add(layout.valley.x, layout.valley.z, (lib.get('Waterfall_Valley')?.radius ?? 20) * 2.4 * 1.05, true)
   if (layout.cliff) grid.add(layout.cliff.x, layout.cliff.z, 30, true)
@@ -157,7 +155,7 @@ export function planEnvironment(lib, mountain, spawn, layout) {
   for (const site of layout.sites) {
     if (site.kind !== 'house' && site.kind !== 'treeHouse') continue
     const name = site.kind === 'house' ? houseNames[hi++ % houseNames.length] : treeHouseNames[ti++ % treeHouseNames.length]
-    // face the building towards where its path arrives
+    // face the building towards its nearest neighbouring site
     const node = layout.sites.reduce((best, s) => (s === site ? best : best && Math.hypot(best.x - site.x, best.z - site.z) < Math.hypot(s.x - site.x, s.z - site.z) ? best : s), null)
     const yaw = Math.atan2(node.x - site.x, node.z - site.z)
     place(name, site.x, site.z, { overlap: true, sink: 0.02, yaw, collide: true })
@@ -275,7 +273,7 @@ export function planEnvironment(lib, mountain, spawn, layout) {
     if (inlandAt(x, z) < P.grass.minInland) return // cheap test first: skip sea and beach
     const s = sample(x, z)
     if (s.grass < 0.45 || s.slope > 0.5) return
-    if (!grid.free(x, z, 1.4, true)) return // not on paths, under buildings or in rocks
+    if (!grid.free(x, z, 1.4, true)) return // not under buildings or in rocks
     const patchy = 0.55 + 0.45 * fbm(n, x / 40 + 50, z / 40, 2)
     if (rand() > P.grass.chance * D * s.grass * patchy) return
     const tufts = 2 + Math.floor(rand() * 3)

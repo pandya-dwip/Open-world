@@ -22,8 +22,10 @@ const HINTS = {
   player: {
     desktop: [
       ['WASD / Arrows', 'Move'],
-      ['Shift', 'Run'],
+      ['X', 'Run'],
       ['Space', 'Jump'],
+      ['Click game', 'Mouse / touchpad looks around'],
+      ['Esc', 'Free the cursor'],
       ['Drag', 'Rotate camera'],
       ['Scroll', 'Zoom'],
     ],

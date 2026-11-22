@@ -26,12 +26,6 @@ export const ANIMATED = {
   splash: base + 'waterfalls/waterfall_splash.glb',
 }
 
-/** Seamless mud-and-moss material of the walking paths. */
-export const PATH_TEXTURES = {
-  albedo: base + 'paths/mud_albedo.webp',
-  normal: base + 'paths/mud_normal.webp',
-  roughness: base + 'paths/mud_roughness.webp',
-}
 export const MOUNTAIN_HEIGHTMAP = { bin: base + 'mountains/mountain-height.bin', json: base + 'mountains/mountain-height.json' }
 
 /**
@@ -168,7 +162,6 @@ export const PLACEMENT = {
   layout: {
     houses: 3,
     treeHouses: 5,
-    pathWidth: 2.6,
   },
   ships: [
     { model: 'galleon', length: 46 },

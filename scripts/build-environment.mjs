@@ -314,20 +314,6 @@ async function buildAnimated() {
   }
 }
 
-/** Seamless mud-and-moss material for the walking paths (colour, normal, roughness). */
-async function pathTextures() {
-  const doc = await io.read(path.join(SRC, 'paths/puddled_mud_with_moss_-_pbr_seamless.glb'))
-  const mat = doc.getRoot().listMaterials()[0]
-  const maps = { albedo: mat.getBaseColorTexture(), normal: mat.getNormalTexture(), roughness: mat.getMetallicRoughnessTexture() }
-  fs.mkdirSync(path.join(OUT, 'paths'), { recursive: true })
-  for (const [k, tex] of Object.entries(maps)) {
-    if (!tex) continue
-    const out = path.join(OUT, `paths/mud_${k}.webp`)
-    await sharp(Buffer.from(tex.getImage())).resize(1024, 1024, { fit: 'inside' }).webp({ quality: 85 }).toFile(out)
-    console.log(`=> ${path.relative(ROOT, out)}`)
-  }
-}
-
 const only = process.argv[2]
 for (const [name, defs] of Object.entries(KITS)) {
   if (only && only !== name) continue
@@ -337,4 +323,3 @@ for (const [name, defs] of Object.entries(KITS)) {
 }
 if (!only || only === 'sand') await sandTextures()
 if (!only || only === 'animated') await buildAnimated()
-if (!only || only === 'paths') await pathTextures()
